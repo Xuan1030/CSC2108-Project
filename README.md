@@ -86,19 +86,3 @@ In this project, we analyze and improve upon the **DeepSeek-Prover-V1.5-Base** m
 3. **Explainability**:
    - Extracting biologically meaningful insights from the model predictions.
 
----
-
-## **Future Work**
-
-- Extend the model to multi-modal datasets, incorporating clinical or phenotypic data.
-- Fine-tune on task-specific datasets for broader applicability.
-- Deploy the model as a web-based tool for real-world use.
-
----
-
-## **How to Run the Code**
-
-1. **Clone the Repository**:
-   ```bash
-   git clone <repository-url>
-   cd <repository-folder>
