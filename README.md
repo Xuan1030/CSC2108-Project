@@ -11,5 +11,4 @@ This repository provides the tools and instructions needed to train, evaluate, a
 - **Country Prediction**: Predicts the country from an image.
 - **Image Augmentation**: Supports image resampling (rotation, cropping, etc.) for robust training.
 - **Pre-trained Models**: Uses transfer learning with models like CLIP or ResNet for accuracy and efficiency.
-- **Hierarchical Classification**: First predicts the continent, then narrows down to the country level.
 - **Deployment Ready**: Can be deployed as a REST API for real-time predictions.
