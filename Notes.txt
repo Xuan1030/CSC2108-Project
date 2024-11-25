@@ -1,0 +1,10 @@
+image -> GPT - describe this image -> CLIP input: An image taken in USA, it has features: GPT generated -> CLIP output: list of countries
+
+clip input : Image of USA, with foreground ___
+
+clip output: [Image of USA, with foreground ___, Image of Belgium ... ]
+
+
+
+
+GPT Costs: 
