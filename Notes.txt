@@ -8,3 +8,18 @@ clip output: [Image of USA, with foreground ___, Image of Belgium ... ]
 
 
 GPT Costs: 
+
+
+GPT-4o
+
+(335/1000*0.00125+80/1000*0.005)*50000=40.9375
+
+Input tokens @0.00125USD / 1K tokens
+
+- 255 tokens for image (512*512 and it is minimal price already)
+- 77 tokens for prompt
+
+
+Output tokens @0.00500USD / 1k tokens
+
+- 60-80 tokens 
