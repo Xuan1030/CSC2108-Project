@@ -24,7 +24,7 @@ def img_to_base64(image_path: str):
     return base64_image
 
 
-def img_feature_analysis(image_path: str):
+def img_feature_analysis_GPT(image_path: str):
     '''
     Ask GPT to describe the front, middle, background features of image. 
     This is single API call. Running it will cost 2x
@@ -54,7 +54,7 @@ def img_feature_analysis(image_path: str):
 
 
 
-def create_gpt_api_request(prompts, image_path, max_tokens=1000):
+def create_api_request_GPT(prompts, image_path, max_tokens=1000):
     '''
     Create a json file with the prompt and image for GPT API
 
@@ -84,7 +84,7 @@ def create_gpt_api_request(prompts, image_path, max_tokens=1000):
 
 
 
-def create_gpt_batch_api_json(img_folder, save_path):
+def create_batch_api_json_GPT(img_folder, save_path):
     '''
     Create a json file with all the images in the folder for batch processing
 
@@ -99,7 +99,7 @@ def create_gpt_batch_api_json(img_folder, save_path):
         tasks = []
         for filename in tqdm(os.listdir(foldername)):
             if filename.lower().endswith(('.jpg')):
-                task = create_gpt_api_request(user_prompt, os.path.join(foldername, filename))
+                task = create_api_request_GPT(user_prompt, os.path.join(foldername, filename))
                 tasks.append(task)
 
         out_json_path = os.path.join(save_path, foldername.split("\\")[-1] + ".jsonl")
@@ -120,4 +120,4 @@ if __name__ == "__main__":
     # print(res.choices[0].message.content)
 
     # Create Batch API for GPT4
-    create_gpt_batch_api_json("datasets/original_dataset", "datasets/GPT_request_batches")
+    create_batch_api_json_GPT("datasets/original_dataset", "datasets/GPT_request_batches")
