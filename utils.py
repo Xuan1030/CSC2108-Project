@@ -26,8 +26,8 @@ def google_cloud_storage_upload_directory(bucket_name, source_directory, workers
     # some CPU and memory resources until finished. Threads can be used instead
     # of processes by passing `worker_type=transfer_manager.THREAD`.
     # workers=8
-
-
+    
+    
     storage_client = Client()
     bucket = storage_client.bucket(bucket_name)
 
@@ -50,10 +50,10 @@ def google_cloud_storage_upload_directory(bucket_name, source_directory, workers
     string_paths = [str(path) for path in relative_paths]
 
     print("Found {} files.".format(len(string_paths)))
-
+    
     # Start the upload.
     results = transfer_manager.upload_many_from_filenames(
-        bucket, string_paths, source_directory=source_directory, max_workers=workers
+        bucket, string_paths, source_directory=source_directory, max_workers=workers, skip_if_exists=True, blob_name_prefix="original_images/"
     )
 
     for name, result in zip(string_paths, results):
@@ -64,3 +64,9 @@ def google_cloud_storage_upload_directory(bucket_name, source_directory, workers
             print("Failed to upload {} due to exception: {}".format(name, result))
         else:
             print("Uploaded {} to {}.".format(name, bucket.name))
+            
+
+if __name__ == "__main__":
+    bucket_name = "csc2108_project"
+    source_dir = "datasets/original_images"
+    google_cloud_storage_upload_directory(bucket_name, source_dir)
