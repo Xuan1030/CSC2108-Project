@@ -4,7 +4,7 @@ import numpy as np
 import os 
 
 # Specify the directory
-img_folder = "./compressed_dataset"
+img_folder = "./datasets/compressed_dataset"
 
 # Function to resample new images
 def augment_image(image):
@@ -47,7 +47,7 @@ def check_for_augmented_files(foldername, keyword="augmented"):
 num_countries = 0
 for foldername, subfolders, filenames in os.walk(img_folder):
     # Count the number of files in the current folder
-    if foldername == "./compressed_dataset":
+    if foldername == img_folder:
         continue
     
     num_files = len(filenames)
@@ -70,7 +70,7 @@ for foldername, subfolders, filenames in os.walk(img_folder):
 
 for foldername, subfolders, filenames in os.walk(img_folder):
     # Count the number of files in the current folder
-    if foldername == "./compressed_dataset":
+    if foldername == img_folder:
         continue
     
     num_files = len(filenames)

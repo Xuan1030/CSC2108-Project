@@ -11,7 +11,7 @@ GOOGLE_API_KEY=os.getenv('GOOGLE_API_KEY')
 GOOGLE_PROJECT_ID = "gen-lang-client-0273375269"
 GOOGLE_BUCKET_NAME = "csc2108_project"
 
-N = 5
+N = 2
 
 # Universal prompts
 user_prompt = f"Analyze {N} front, {N} middle, and {N} background feature words, other than UI components, of the image given. Provide the answer in the format: " + \
@@ -96,7 +96,7 @@ def parse_response_jsonl(output_json_path):
         response = json.loads(response)
         
         image_path = response["request"]["contents"][0]["parts"][1]["fileData"]["fileUri"]
-        country = image_path.split("/")[-2]
+        region_or_country = image_path.split("/")[-2]
         img_file = image_path.split("/")[-1]
         
         # Extract features from the response text
@@ -104,7 +104,7 @@ def parse_response_jsonl(output_json_path):
             features = response["response"]["candidates"][0]["content"]["parts"][0]["text"]
         except:
             parsed_responses.append({
-                "country": country,
+                "region_or_country": region_or_country,
                 "image": img_file,
                 "Error": True,
                 "Error_msg": response
@@ -115,20 +115,32 @@ def parse_response_jsonl(output_json_path):
         
         features = features[start_idx:end_idx]
         
-        fr_idx = features.find("fr")
-        md_idx = features.find("md")
-        bg_idx = features.find("bg")
+        fr_idx = features.find("'fr':")
+        md_idx = features.find("'md':")
+        bg_idx = features.find("'bg':")
         
         front_features = features[fr_idx+5:md_idx]
         middle_features = features[md_idx+5:bg_idx]
         back_features = features[bg_idx+5:end_idx]
         
         parsed_responses.append({
-            "country": country,
+            "region_or_country": region_or_country,
             "image": img_file,
-            "front_features": front_features,
-            "middle_features": middle_features,
-            "back_features": back_features,
+            "front_features": ", ".join(front_features
+                .replace(" ", "")
+                .replace("'", "")
+                .replace(";", "")
+                .split(",")[:N]),
+            "middle_features": ", ".join(middle_features
+                .replace(" ", "")
+                .replace("'", "")
+                .replace(";", "")
+                .split(",")[:N]),
+            "back_features": ", ".join(back_features
+                .replace(" ", "")
+                .replace("'", "")
+                .replace(";", "")
+                .split(",")[:N]),
             "Error": False
         })
     
@@ -147,5 +159,6 @@ if __name__ == "__main__":
     # Parse the response jsonl file
     parsed_responses = parse_response_jsonl("prediction.jsonl")
     # Save the parsed responses to a json file
-    with open("parsed_responses.json", "w") as f:
-        json.dump(parsed_responses, f, indent=4)
+    with open("parsed_responses.jsonl", "w") as f:
+        for js in parsed_responses:
+            f.write(json.dumps(js) + "\n")
