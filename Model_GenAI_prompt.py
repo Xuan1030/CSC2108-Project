@@ -9,6 +9,8 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
+torch.manual_seed(0)
+
 # Disable SSL certificate verification
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -39,17 +41,16 @@ class ImagePromptDataset(Dataset):
         for js in generated_results:
             js = json.loads(js)
             if not js["Error"]:
+                cur_prompt = f"Image of {js['region_or_country']}, with {js['front_features']} in the front, {js['middle_features']} in the middle, and {js['back_features']} in the background"
                 try:
-                    self.image_paths.append(os.path.join(dataset_folder, js["region_or_country"], js["image"]))
-                    cur_prompt = clip.tokenize(f"Image of {js['region_or_country']}, with {js['front_features']} in the front, {js['middle_features']} in the middle, and {js['back_features']} in the background")
-                    self.prompts.append(cur_prompt)
-                    self.labels.append(js["region_or_country"])
-                    count += 1
-                except Exception as e:
-                    print(f"Error loading image: {js['region_or_country']}, {js['image']}, skipping")
-                    print(e)
-                    print(f"Prompt: {js}")
+                    assert len(cur_prompt.split()) <= 77
+                except:
+                    print(f"Error tokenizing prompt: {js}")
                     continue
+                self.image_paths.append(os.path.join(dataset_folder, js["region_or_country"], js["image"]))
+                self.prompts.append(cur_prompt)
+                self.labels.append(js["region_or_country"])
+                count += 1
                 
                 # Add augmented images with the same prompt
                 augmented_image_path_prefix = os.path.join(dataset_folder, js["region_or_country"], js["image"].replace(".jpg", "_augmented"))
@@ -57,15 +58,10 @@ class ImagePromptDataset(Dataset):
                 for i in range(8):
                     augmented_image_path = f"{augmented_image_path_prefix}_{i}.jpg"
                     if os.path.exists(augmented_image_path):
-                        try:
-                            self.image_paths.append(augmented_image_path)
-                            self.prompts.append(cur_prompt)
-                            self.labels.append(js["region_or_country"])
-                            count += 1
-                        except Exception as e:
-                            print(f"Error loading augmented image: {augmented_image_path}")
-                            print(e)
-                            print(f"Prompt: {js}")
+                        self.image_paths.append(augmented_image_path)
+                        self.prompts.append(cur_prompt)
+                        self.labels.append(js["region_or_country"])
+                        count += 1
         
         self.prompts = torch.cat(self.prompts)
         print(f"Loaded {count} images")
@@ -77,7 +73,7 @@ class ImagePromptDataset(Dataset):
     
     def __getitem__(self, idx):
         image = self.transform(Image.open(self.image_paths[idx]))
-        prompt = self.prompts[idx]
+        prompt = torch.cat(clip.tokenize(self.prompts[idx]))
         region_or_country_label = self.labels[idx]
         return image, prompt, region_or_country_label
 
@@ -172,8 +168,8 @@ def train_clip(train_dataloader, val_datakoader, model, epochs, learning_rate, d
             process_bar.set_description(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item()}")
         
         # Save model
-        torch.save(model.state_dict(), f"./training_prompt_clip_model_epoch_{epoch+1}.pt")
-        return model
+    torch.save(model.state_dict(), f"./training_clip_with_prompt/training_prompt_clip_model_epoch_{epoch+1}.pt")
+    return model
         
 
 
@@ -183,6 +179,8 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # For macbook
     # device = "mps"
+    print(f"Using device: {device}")
+
     model, preprocess = clip.load("ViT-B/32", device=device)
 
     # Apply CLIP on the datasetß
@@ -206,27 +204,45 @@ if __name__ == "__main__":
         ds = ImagePromptDataset(dataset_folder, prompt_json, transform=transform)
         torch.save(ds, dataset_pt_file)
     
-    dataloader = DataLoader(ds, batch_size=32, shuffle=False)
-    
     train_size = int(0.8 * len(ds))
     train_dataset, val_dataset = random_split(ds, [train_size, len(ds) - train_size])
     
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False)
     
-    model = train_clip(train_dataloader, val_dataloader, model, 3, 1e-4, device)
+    # Training the model
+    # model = train_clip(train_dataloader, val_dataloader, model, 3, 1e-6, device)
     
-    # Validation
+    # Traditional Validation
+    # This part does not work very well atm...
+    # val_process_bar = tqdm(val_dataloader, total=len(val_dataloader))
+    # val_correct = 0
+    # for images, prompts, labels in val_process_bar:
+    #     images = images.to(device)
+    #     prompts = prompts.to(device)
+        
+    #     logit_image, logit_text = model(images, prompts)
+    #     predicted_labels = torch.argmax(logit_image, dim=1)
+    #     for i, predicted_label in enumerate(predicted_labels):
+    #         if predicted_label == labels[i]:
+    #             val_correct += 1
+        
+    # val_accuracy = val_correct / len(val_dataset)
+    # print(f"Validation accuracy: {val_accuracy}")
+
+
+    # Validation using our scenario
     val_process_bar = tqdm(val_dataloader, total=len(val_dataloader))
     val_correct = 0
-    for i, (images, prompts, labels) in val_process_bar:
+    for images, prompts, labels in val_process_bar:
         images = images.to(device)
         prompts = prompts.to(device)
-        labels = labels.to(device)
         
         logit_image, logit_text = model(images, prompts)
         predicted_labels = torch.argmax(logit_image, dim=1)
-        val_correct += (predicted_labels == labels).sum().item()
+        for i, predicted_label in enumerate(predicted_labels):
+            if predicted_label == labels[i]:
+                val_correct += 1
         
     val_accuracy = val_correct / len(val_dataset)
     print(f"Validation accuracy: {val_accuracy}")

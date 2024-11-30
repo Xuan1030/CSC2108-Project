@@ -10,6 +10,9 @@ def google_cloud_storage_upload_directory(bucket_name, source_directory, workers
     parameter itself. For complete control of the blob name for each file (and
     other aspects of individual blob metadata), use
     transfer_manager.upload_many() instead.
+
+    Function is based on the example provided in the official documentation:
+    https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/batch-prediction-gemini
     """
 
     # The ID of your GCS bucket
