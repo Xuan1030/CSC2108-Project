@@ -75,7 +75,7 @@ class ImagePromptDataset(Dataset):
     def __getitem__(self, idx):
         image = self.transform(Image.open(self.image_paths[idx]))
         text_prompt = self.prompts[idx]
-        prompt = clip.tokenize(text_prompt)
+        prompt = clip.tokenize(text_prompt).squeeze(0)
         region_or_country_label = self.labels[idx]
         return image, text_prompt, prompt, region_or_country_label
 
@@ -87,34 +87,32 @@ class ImageLabelDataset(Dataset):
         self.countries = []
         self.transform = transform
 
-        # Create a mapping of folder names (countries) to integer indices
-        self.country_to_index = {country: idx for idx, country in enumerate(sorted(os.listdir(dataset_folder))) if '.' not in country}
-
         for foldername, subfolders, filenames in os.walk(dataset_folder):
             if foldername == dataset_folder:
                 continue
             country = os.path.basename(foldername)  # Get the folder name (country)
-            if country not in self.country_to_index:
-                continue  # Skip if the folder is not in the mapping
             
             for filename in filenames:
                 if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
                     continue
                 img_path = os.path.join(foldername, filename)
                 self.images.append(img_path)
-                self.countries.append(self.country_to_index[country])  # Add the integer label
+                self.countries.append(country) 
                 
     def __len__(self):
         return len(self.countries)
     
     def __getitem__(self, idx):
-        print(f"Loading item {idx}")
         image_path = self.images[idx]
         country_label = self.countries[idx]
+
         image = Image.open(image_path).convert("RGB")
+        text_prompt = f"A Street View photo from {country_label}"
+        prompt = clip.tokenize(text_prompt).squeeze(0)
+
         if self.transform:
             image = self.transform(image)
-        return image, country_label
+        return image, text_prompt, prompt, country_label
 
 
 
@@ -133,7 +131,7 @@ def find_image_index(dataset, query_image_tensor):
 
 
 
-def train_clip(train_dataloader, model, epochs, learning_rate, device, save_path=None):    
+def train_clip(train_dataloader, model, epochs, learning_rate, device, save_path=None, use_prompt=True):    
     model.to(device)
     model.train()
 
@@ -151,7 +149,6 @@ def train_clip(train_dataloader, model, epochs, learning_rate, device, save_path
             prompts = prompts.to(device)
             
             optimizer.zero_grad()
-            
             # Forward pass
             logit_image, logit_text = model(images, prompts)
             ground_truth = torch.arange(len(images), dtype=torch.long, device=device)
@@ -179,6 +176,7 @@ def train_clip(train_dataloader, model, epochs, learning_rate, device, save_path
 def validate_clip_with_prompt(val_dataloader, img_dataset_folder, model, device, k=5):
     # Validation using our scenario
     model.eval()
+    model.to(device)
     # Generate Country list
     country_list = [country for country in sorted(os.listdir(img_dataset_folder)) if '.' not in country]
 
@@ -220,11 +218,54 @@ def validate_clip_with_prompt(val_dataloader, img_dataset_folder, model, device,
 
 
 
+def validate_clip(val_dataloader, img_dataset_folder, model, device, k=5):
+    # Validation using our scenario
+    model.eval()
+    model.to(device)
+    # Generate Country list
+    country_list = [country for country in sorted(os.listdir(img_dataset_folder)) if '.' not in country]
+
+    val_process_bar = tqdm(enumerate(val_dataloader), total=len(val_dataloader))
+    val_correct = 0
+
+    for i, tup in val_process_bar:
+        
+        image, text_prompt, _, label = tup
+
+        # Create fake prompts with all country names
+        tokenized_prompts = torch.cat([clip.tokenize(f"A Street View photo from {country}", truncate=True) for country in country_list]).to(device)
+        
+        image = image.to(device)
+        label = label[0]
+        
+        with torch.no_grad():
+            image_encoded = model.encode_image(image)
+            text_encode = model.encode_text(tokenized_prompts)
+
+        # Calculate similarity
+        image_encoded /= image_encoded.norm(dim=-1, keepdim=True)
+        text_encode /= text_encode.norm(dim=-1, keepdim=True)
+        similarity = (100.0 * image_encoded @ text_encode.T).softmax(dim=-1)
+
+        values, indices = similarity[0].topk(k)
+        predicted_labels = [country_list[idx] for idx in indices]
+
+        for predicted_label in predicted_labels:
+            if predicted_label == label:
+                val_correct += 1
+
+        val_process_bar.set_description(f"Image {i+1}/{len(val_dataset)}, Validation accuracy: {round(val_correct / (i+1) *100, 4)}%")
+    val_accuracy = val_correct / len(val_dataset)
+    print(f"Validation accuracy: {val_accuracy}")
+    return val_accuracy
+
+
+
 if __name__ == "__main__":
 
     # Parse arguments
     parser = ArgumentParser()
-    parser.add_argument("--use_prompt", type=bool, default=True)
+    parser.add_argument("--use_prompt", action='store_true')
     parser.add_argument("--use_dataset", type=str, default="training_clip_with_prompt/prompted_dataset.pt")
     parser.add_argument("--use_model", type=str, default="training_clip_with_prompt/training_prompt_clip_model_epoch_3.pt")
     parser.add_argument("--k", type=int, default=5)
@@ -262,6 +303,7 @@ if __name__ == "__main__":
             torch.save(ds, dataset_pt_file)
     else:
         if os.path.exists(dataset_pt_file):
+            print("loading local dataset")
             ds = torch.load(dataset_pt_file, weights_only=False)
         else:
             ds = ImageLabelDataset(image_dataset_folder, transform=transform)
@@ -276,13 +318,13 @@ if __name__ == "__main__":
     
 
     # Training the model
-    # model = train_clip(train_dataloader, val_dataloader, model, 3, 1e-6, device, save_path="./training_clip_with_prompt/training_prompt_clip_model_epoch_4.pt")
+    # model = train_clip(train_dataloader, model, 3, 1e-6, device, save_path="./training_clip_unified_prompt/model_epoch_3.pt")
     
     # Load the model
     model.load_state_dict(torch.load(args.use_model, weights_only=True))
 
     # Validate the model
-    accuracy = validate_clip_with_prompt(val_dataloader, image_dataset_folder, model, device, args.k)
+    accuracy = validate_clip(val_dataloader, image_dataset_folder, model, device, args.k)
     
     
     
