@@ -65,12 +65,12 @@ if __name__ == "__main__":
     
     test_data_length = int(len(images_shuffled) * 0.2)
     print(test_data_length)
-    images = images_shuffled[:test_data_length]
-    countries = countries_shuffled[:test_data_length]
+    images = images_shuffled[:300]
+    countries = countries_shuffled[:300]
     
     correct_predictions = 0
     total_images = len(images)
-
+    top5_correct_predictions = 0
     for i in range(total_images):
         # Load and preprocess an image
         image_path = images[i] # Replace with your image path
@@ -87,9 +87,17 @@ if __name__ == "__main__":
 
         # Identify the best-matching text description
         best_match_idx = similarity.argmax().item()
+
         print(f"Best match: {best_match_idx}, Text: {unique_countries[best_match_idx]}")
         if (unique_countries[best_match_idx] == actual_country):
             correct_predictions += 1
+        
+        top_5_values, top_5_indices = torch.topk(similarity, k=5)
+        best_5_preds = [unique_countries[idx] for idx in top_5_indices.tolist()]
+        print(f"Top 5 matches: {best_5_preds}")
+        if (actual_country in best_5_preds):
+            top5_correct_predictions += 1
 
 
-    print(f"Accuracy: {correct_predictions / total_images}")
+    print(f"Top-1 Accuracy: {correct_predictions / total_images}")
+    print(f"Top-5 Accuracy: {top5_correct_predictions / total_images}")
