@@ -10,7 +10,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import random
 import torch.nn.functional as F
-
+print({country: idx for idx, country in enumerate(sorted(os.listdir("./compressed_dataset"))) if '.' not in country}["United States"])
 # Disable SSL certificate verification
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -218,26 +218,25 @@ if __name__ == "__main__":
     random_idx = random.randint(0, len(test_dataset) - 1)
     image_tensor, label = test_dataset[random_idx]
     img_path_index = find_image_index(dataset, image_tensor)
-    plot_image(dataset.images[img_path_index])
     print()
     print(f"True country: {idx_to_country(label)}")
-    print("RANDOM INDEX:", random_idx, "img_path_index:", img_path_index)
-    
+    # print("RANDOM INDEX:", random_idx, "img_path_index:", img_path_index)
+    plot_image(dataset.images[img_path_index])
     # Predict using the trained classifier
     classifier.eval()
     with torch.no_grad():
         # Retrieve the precomputed CLIP feature for the test image
-        image_feature = test_image_features[random_idx]  # Shape: [512]
-
+        image_feature = test_image_features[random_idx]
+        
         # Unsqueeze to add batch dimension (if needed for the classifier)
         image_feature = image_feature.unsqueeze(0).to(device)
 
         # Pass the feature to the classifier
-        logits = classifier(image_feature)  # Shape: [1, num_classes]
+        logits = classifier(image_feature)
 
         # Apply softmax to get probabilities
-        probs = F.softmax(logits, dim=1)  # Shape: [1, num_classes]
-
+        probs = F.softmax(logits, dim=1)
+        # print(probs.shape)
         # Get top 5 predictions
         top_k = 5
         top_probs, top_indices = torch.topk(probs, k=top_k, dim=1)
@@ -247,5 +246,5 @@ if __name__ == "__main__":
     # Print the results
     print("Top 5 Predictions:")
     for i in range(top_k):
-        print(f"Class: {idx_to_country(top_indices[i])}, Probability: {top_probs[i]}")
+        print(f"Class: {idx_to_country(top_indices[i] + 1)}, Probability: {top_probs[i]}")
         
