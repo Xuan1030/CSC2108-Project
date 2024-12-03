@@ -15,6 +15,7 @@ This repository provides the tools and instructions needed to train, evaluate, a
 
 
 ## Training Notes
-- **Baseline Training with unified Prompt**: Fine-Tune CLIP using unified text prompt "An image of {country_name}". Validation Accuracy = 81.0% top-5, 49% top-1
-- **Fine-Tune with environment Prompt**： Fine-Tune CLIP using text prompt "An image of {country_name}, with {env_feature} and has {arc_feature}." Val acc=38.8902% top-1 70.26% top-5
-- **Fine-Tune with feature Prompt**： Fine-Tune CLIP using text prompt "An image of {country_name}, with {feature1, feature2} in the frond, {feature3, feature4} in the middle and {feature5, feature6} in the back." Val acc = 41.7% top-1, 73.2% top-5
+- **Base CLIP Model**: Performance of Pre-trained CLIP model. Top-5 Accuracy 59.3%, Top-1 Accuracy 34.1%
+- **Neural Network on Top of CLIP**: Trained with one-layer network based on CLIP. Top-5 Accuracy: 88.0% Top-1 Accuracy: 61.4%
+- **Pre-Train with clip and features**: Pre-train with Google Gemini generated image descriptions. Validation Accuracy = 68% top 5, 38% top-1
+- **Baseline Training with unified Prompt**: Pre-train using unified text prompt "An image of {country_name}". Validation Accuracy = 81.0% top-5, 49.0% top-1

@@ -10,7 +10,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import random
 import torch.nn.functional as F
-
+print({country: idx for idx, country in enumerate(sorted(os.listdir("./compressed_dataset"))) if '.' not in country}["United States"])
 # Disable SSL certificate verification
 ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -53,7 +53,7 @@ class ImageDataset(Dataset):
         return len(self.countries)
     
     def __getitem__(self, idx):
-        print(f"Loading item {idx}")
+        # print(f"Loading item {idx}")
         image_path = self.images[idx]
         country_label = self.countries[idx]
         image = Image.open(image_path).convert("RGB")
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     num_classes = len(torch.unique(train_labels))  # Total number of unique countries
     
     classifier = nn.Linear(512, num_classes).to(device)
-    state_dict = torch.load("./training_new_classifier/classifier.pth")  # Load the saved state dict
+    state_dict = torch.load("./training_new_classifier/classifier.pth", weights_only=True)  # Load the saved state dict
     classifier.load_state_dict(state_dict) 
     ''' Model Saved at ./training_new_classifier!!!
     
@@ -197,10 +197,17 @@ if __name__ == "__main__":
     classifier.eval()
     with torch.no_grad():
         outputs = classifier(test_image_features)
+        # Top-1 Predictions Accuracy
         preds = torch.argmax(outputs, dim=1)
-        test_accuracy = (preds == test_labels).float().mean().item()
+        top1_accuracy = (preds == test_labels).float().mean().item()
 
-    print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+        # Top-5 predictions
+        top5_preds = torch.topk(outputs, k=5, dim=1).indices  # Shape: (num_samples, 5)
+        top5_accuracy = (test_labels.unsqueeze(1) == top5_preds).any(dim=1).float().mean().item()
+
+    print(f"Top-1 Accuracy: {top1_accuracy * 100:.1f}%")
+    print(f"Top-5 Accuracy: {top5_accuracy * 100:.1f}%")
+    
     ''' ALREADY SAVED
     torch.save(classifier.state_dict(), "./training_new_classifier/classifier.pth")
     print("Classifier saved successfully.")
@@ -211,25 +218,25 @@ if __name__ == "__main__":
     random_idx = random.randint(0, len(test_dataset) - 1)
     image_tensor, label = test_dataset[random_idx]
     img_path_index = find_image_index(dataset, image_tensor)
-    plot_image(dataset.images[img_path_index])
+    print()
     print(f"True country: {idx_to_country(label)}")
-    print("RANDOM INDEX:", random_idx, "img_path_index:", img_path_index)
-    
+    # print("RANDOM INDEX:", random_idx, "img_path_index:", img_path_index)
+    plot_image(dataset.images[img_path_index])
     # Predict using the trained classifier
     classifier.eval()
     with torch.no_grad():
         # Retrieve the precomputed CLIP feature for the test image
-        image_feature = test_image_features[random_idx]  # Shape: [512]
-
+        image_feature = test_image_features[random_idx]
+        
         # Unsqueeze to add batch dimension (if needed for the classifier)
         image_feature = image_feature.unsqueeze(0).to(device)
 
         # Pass the feature to the classifier
-        logits = classifier(image_feature)  # Shape: [1, num_classes]
+        logits = classifier(image_feature)
 
         # Apply softmax to get probabilities
-        probs = F.softmax(logits, dim=1)  # Shape: [1, num_classes]
-
+        probs = F.softmax(logits, dim=1)
+        # print(probs.shape)
         # Get top 5 predictions
         top_k = 5
         top_probs, top_indices = torch.topk(probs, k=top_k, dim=1)
@@ -239,5 +246,5 @@ if __name__ == "__main__":
     # Print the results
     print("Top 5 Predictions:")
     for i in range(top_k):
-        print(f"Class: {idx_to_country(top_indices[i])}, Probability: {top_probs[i]}")
+        print(f"Class: {idx_to_country(top_indices[i] + 1)}, Probability: {top_probs[i]}")
         
