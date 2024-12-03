@@ -116,6 +116,73 @@ class ImageLabelDataset(Dataset):
 
 
 
+class ImageEnvPromptDataset(Dataset):
+    def __init__(self, dataset_folder, prompt_json, transform=None):
+        self.image_paths = []
+        self.prompts = []
+        self.labels = []
+        self.transform = transform
+
+        count = 0
+        with open(prompt_json, "r") as f:
+            generated_results = f.readlines()
+
+        for js in generated_results:
+            js = json.loads(js)
+            if not js["Error"]:
+                try:
+                    env_desc = js["env_desc"].split("||")[0]
+                    arc_desc = js["env_desc"].split("||")[1]
+                    cur_prompt = f"A street view photo from {js['region_or_country']}, with {env_desc}. It has {arc_desc}."
+                except:
+                    try:
+                        env_desc = js["env_desc"].split("|")[0]
+                        arc_desc = js["env_desc"].split("|")[1]
+                        cur_prompt = f"A street view photo from {js['region_or_country']}, with {env_desc}. It has {arc_desc}."
+                    except Exception as e:
+                        print("Error Parsing description")
+                        print(js)
+                try:
+                    assert len(cur_prompt.split()) <= 77
+                except:
+                    print(f"Error tokenizing prompt: {js}")
+                    continue
+                self.image_paths.append(os.path.join(dataset_folder, js["region_or_country"], js["image"]))
+                self.prompts.append(cur_prompt)
+                self.labels.append(js["region_or_country"])
+                count += 1
+                
+                # Add augmented images with the same prompt
+                augmented_image_path_prefix = os.path.join(dataset_folder, js["region_or_country"], js["image"].replace(".jpg", "_augmented"))
+                # Iterate through augmented images
+                for i in range(8):
+                    augmented_image_path = f"{augmented_image_path_prefix}_{i}.jpg"
+                    if os.path.exists(augmented_image_path):
+                        self.image_paths.append(augmented_image_path)
+                        self.prompts.append(cur_prompt)
+                        self.labels.append(js["region_or_country"])
+                        count += 1
+        
+        print(f"Loaded {count} images")
+            
+            
+    def __len__(self):
+        return len(self.image_paths)
+    
+    
+    def __getitem__(self, idx):
+        image = self.transform(Image.open(self.image_paths[idx]))
+        text_prompt = self.prompts[idx]
+        prompt = clip.tokenize(text_prompt, truncate=True).squeeze(0)
+        region_or_country_label = self.labels[idx]
+        return image, text_prompt, prompt, region_or_country_label
+
+
+
+
+
+
+
 def convert_models_to_fp32(model): 
     for p in model.parameters(): 
         p.data = p.data.float() 
@@ -232,7 +299,6 @@ def validate_clip(val_dataloader, img_dataset_folder, model, device, k=5):
         
         image, text_prompt, _, label = tup
 
-        # Create fake prompts with all country names
         tokenized_prompts = torch.cat([clip.tokenize(f"A Street View photo from {country}", truncate=True) for country in country_list]).to(device)
         
         image = image.to(device)
@@ -261,15 +327,49 @@ def validate_clip(val_dataloader, img_dataset_folder, model, device, k=5):
 
 
 
+def predict_image(image, model, device, k=5, img_dataset_folder="datasets/compressed_dataset"):
+    model.eval()
+    model.to(device)
+    # Generate Country list
+    country_list = [country for country in sorted(os.listdir(img_dataset_folder)) if '.' not in country]
+
+    image = image.to(device)
+
+    tokenized_prompts = torch.cat([clip.tokenize(f"A Street View photo from {country}", truncate=True) for country in country_list]).to(device)
+
+    with torch.no_grad():
+        image_encoded = model.encode_image(image)
+        text_encode = model.encode_text(tokenized_prompts)
+
+    # Calculate similarity
+    image_encoded /= image_encoded.norm(dim=-1, keepdim=True)
+    text_encode /= text_encode.norm(dim=-1, keepdim=True)
+    similarity = (100.0 * image_encoded @ text_encode.T).softmax(dim=-1)
+
+    values, indices = similarity[0].topk(k)
+    predicted_labels = [country_list[idx] for idx in indices]
+
+    return predicted_labels, values
+
+
+
 if __name__ == "__main__":
 
     # Parse arguments
     parser = ArgumentParser()
     parser.add_argument("--use_prompt", action='store_true')
+    parser.add_argument("--use_env", action='store_true')
+    parser.add_argument("--train", action='store_true')
     parser.add_argument("--use_dataset", type=str, default="training_clip_with_prompt/prompted_dataset.pt")
     parser.add_argument("--use_model", type=str, default="training_clip_with_prompt/training_prompt_clip_model_epoch_3.pt")
     parser.add_argument("--k", type=int, default=5)
+    parser.add_argument("--predict", type=str, default=None)
+
     args = parser.parse_args()
+
+    # Check prompts:
+    if args.use_prompt and args.use_env:
+        raise ValueError("Cannot use both prompts and environment descriptions")
 
     # Load the CLIP model
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -292,36 +392,55 @@ if __name__ == "__main__":
         )
     ])
     
-    # Construct Dataset and DataLoader
-    if args.use_prompt:
-        prompt_json = "parsed_responses.jsonl"
-
-        if os.path.exists(dataset_pt_file):
-            ds = torch.load(dataset_pt_file, weights_only=False)
+    if args.predict is None:
+        # Construct Dataset and DataLoader
+        if args.use_prompt:
+            if os.path.exists(dataset_pt_file):
+                ds = torch.load(dataset_pt_file, weights_only=False)
+            else:
+                prompt_json = "parsed_responses.jsonl"
+                ds = ImagePromptDataset(image_dataset_folder, prompt_json, transform=transform)
+                torch.save(ds, dataset_pt_file)
+        elif args.use_env:
+            if os.path.exists(dataset_pt_file):
+                ds = torch.load(dataset_pt_file, weights_only=False)
+            else:
+                prompt_json = "parsed_env_responses.jsonl"
+                ds = ImageEnvPromptDataset(image_dataset_folder, prompt_json, transform=transform)
+                torch.save(ds, dataset_pt_file)
         else:
-            ds = ImagePromptDataset(image_dataset_folder, prompt_json, transform=transform)
-            torch.save(ds, dataset_pt_file)
-    else:
-        if os.path.exists(dataset_pt_file):
-            print("loading local dataset")
-            ds = torch.load(dataset_pt_file, weights_only=False)
-        else:
-            ds = ImageLabelDataset(image_dataset_folder, transform=transform)
-            torch.save(ds, dataset_pt_file)
-    
+            if os.path.exists(dataset_pt_file):
+                print("loading local dataset")
+                ds = torch.load(dataset_pt_file, weights_only=False)
+            else:
+                ds = ImageLabelDataset(image_dataset_folder, transform=transform)
+                torch.save(ds, dataset_pt_file)
+        
 
-    train_size = int(0.8 * len(ds))
-    train_dataset, val_dataset = random_split(ds, [train_size, len(ds) - train_size])
+        train_size = int(0.8 * len(ds))
+        train_dataset, val_dataset = random_split(ds, [train_size, len(ds) - train_size])
+        
+        train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=True)
     
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=True)
-    
+        # Training the model
+        if args.train:
+            model = train_clip(train_dataloader, model, 3, 1e-7, device, save_path=args.use_model)
 
-    # Training the model
-    # model = train_clip(train_dataloader, model, 3, 1e-6, device, save_path="./training_clip_unified_prompt/model_epoch_3.pt")
-    
+
     # Load the model
     model.load_state_dict(torch.load(args.use_model, weights_only=True))
+
+    if args.predict is not None:
+        image = Image.open(args.predict).convert("RGB")
+        image = transform(image).unsqueeze(0)
+        predicted_labels, values = predict_image(image, model, device, k=args.k)
+        output_str = ""
+        for label, value in zip(predicted_labels, values):
+            output_str += f"{label}: {value.item()}\n"
+        print("Predicted labels:")
+        print(output_str)
+        exit()
 
     # Validate the model
     accuracy = validate_clip(val_dataloader, image_dataset_folder, model, device, args.k)
