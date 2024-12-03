@@ -15,6 +15,7 @@ This repository provides the tools and instructions needed to train, evaluate, a
 
 
 ## Training Notes
-- **Base CLIP Model**: Performance of Pre-trained CLIP model. Test Accuracy: 59.3% top-5, 34.1% top-1
+- **Base CLIP Model**: Performance of Pre-trained CLIP model. Top-5 Accuracy 59.3%, Top-1 Accuracy 34.1%
+- **Neural Network on Top of CLIP**: Trained with one-layer network based on CLIP. Top-5 Accuracy: 88.0% Top-1 Accuracy: 61.4%
 - **Pre-Train with clip and features**: Pre-train with Google Gemini generated image descriptions. Validation Accuracy = 68% top 5, 38% top-1
 - **Baseline Training with unified Prompt**: Pre-train using unified text prompt "An image of {country_name}". Validation Accuracy = 81% top-5, 49% top-1
