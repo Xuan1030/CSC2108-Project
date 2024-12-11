@@ -91,7 +91,6 @@ class ImageLabelDataset(Dataset):
             if foldername == dataset_folder:
                 continue
             country = os.path.basename(foldername)  # Get the folder name (country)
-            
             for filename in filenames:
                 if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
                     continue
@@ -320,8 +319,8 @@ def validate_clip(val_dataloader, img_dataset_folder, model, device, k=5):
             if predicted_label == label:
                 val_correct += 1
 
-        val_process_bar.set_description(f"Image {i+1}/{len(val_dataset)}, Validation accuracy: {round(val_correct / (i+1) *100, 4)}%")
-    val_accuracy = val_correct / len(val_dataset)
+        val_process_bar.set_description(f"Image {i+1}/{len(val_dataloader)}, Validation accuracy: {round(val_correct / (i+1) *100, 4)}%")
+    val_accuracy = val_correct / len(val_dataloader)
     print(f"Validation accuracy: {val_accuracy}")
     return val_accuracy
 
@@ -360,10 +359,11 @@ if __name__ == "__main__":
     parser.add_argument("--use_prompt", action='store_true')
     parser.add_argument("--use_env", action='store_true')
     parser.add_argument("--train", action='store_true')
-    parser.add_argument("--use_dataset", type=str, default="training_clip_with_prompt/prompted_dataset.pt")
-    parser.add_argument("--use_model", type=str, default="training_clip_with_prompt/training_prompt_clip_model_epoch_3.pt")
+    parser.add_argument("--use_dataset", type=str, default="training_clip_unified_prompt/prompted_dataset.pt")
+    parser.add_argument("--use_model", type=str, default="training_clip_unified_prompt/model_epoch_3_benchmark.pt")
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--predict", type=str, default=None)
+    parser.add_argument("--validate", type=str, default=None)
 
     args = parser.parse_args()
 
@@ -392,7 +392,7 @@ if __name__ == "__main__":
         )
     ])
     
-    if args.predict is None:
+    if args.predict is None and args.validate is None:
         # Construct Dataset and DataLoader
         if args.use_prompt:
             if os.path.exists(dataset_pt_file):
@@ -417,7 +417,7 @@ if __name__ == "__main__":
                 torch.save(ds, dataset_pt_file)
         
 
-        train_size = int(0.8 * len(ds))
+        train_size = int(0.9 * len(ds))
         train_dataset, val_dataset = random_split(ds, [train_size, len(ds) - train_size])
         
         train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
@@ -427,6 +427,8 @@ if __name__ == "__main__":
         if args.train:
             model = train_clip(train_dataloader, model, 3, 1e-7, device, save_path=args.use_model)
 
+            # Validate the model
+            accuracy = validate_clip(val_dataloader, image_dataset_folder, model, device, args.k)
 
     # Load the model
     model.load_state_dict(torch.load(args.use_model, weights_only=True))
@@ -442,8 +444,13 @@ if __name__ == "__main__":
         print(output_str)
         exit()
 
-    # Validate the model
-    accuracy = validate_clip(val_dataloader, image_dataset_folder, model, device, args.k)
+    if args.validate is not None:
+        print("Validating model with custom dataset")
+        # Load validation set by creating a new dataset
+        val_ds = ImageLabelDataset(args.validate, transform=transform)
+        print("Loaded validation dataset")
+        val_dl = DataLoader(val_ds, batch_size=1, shuffle=True)
+        validate_clip(val_dl, args.validate, model, device, 1)
     
     
     
