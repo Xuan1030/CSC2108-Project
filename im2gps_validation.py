@@ -45,6 +45,7 @@ if __name__ == "__main__":
 
     # Save the embeddings for reuse
     torch.save(test_image_features, "./validations/test_image_features.pt")
+    torch.save(test_labels, "./validations/test_labels.pt")
 
     print("Features extracted and saved for im2gpt validation.")
     
