@@ -331,7 +331,7 @@ if __name__ == "__main__":
     # device = "mps"
     print(f"Using device: {device}")
 
-    model, preprocess = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load("ViT-B/32", device=device, download_root='./clip/')
 
     # Apply CLIP on the datasetß
     image_dataset_folder = "datasets/compressed_dataset"

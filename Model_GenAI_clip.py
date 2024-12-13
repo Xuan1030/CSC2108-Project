@@ -359,8 +359,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_prompt", action='store_true')
     parser.add_argument("--use_env", action='store_true')
     parser.add_argument("--train", action='store_true')
-    parser.add_argument("--use_dataset", type=str, default="training_clip_unified_prompt/prompted_dataset.pt")
-    parser.add_argument("--use_model", type=str, default="training_clip_unified_prompt/model_epoch_3_benchmark.pt")
+    parser.add_argument("--use_dataset", type=str, default="training_clip_unified_prompt/dataset.pt")
+    parser.add_argument("--use_model", type=str, default="training_clip_unified_prompt/model_epoch_10.pt")
     parser.add_argument("--k", type=int, default=5)
     parser.add_argument("--predict", type=str, default=None)
     parser.add_argument("--validate", type=str, default=None)
@@ -377,7 +377,7 @@ if __name__ == "__main__":
     # device = "mps"
     print(f"Using device: {device}")
 
-    model, preprocess = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load("ViT-B/32", device=device, download_root='./clip/')
 
     # Apply CLIP on the datasetß
     image_dataset_folder = "datasets/compressed_dataset"
@@ -420,12 +420,12 @@ if __name__ == "__main__":
         train_size = int(0.9 * len(ds))
         train_dataset, val_dataset = random_split(ds, [train_size, len(ds) - train_size])
         
-        train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)
         val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=True)
     
         # Training the model
         if args.train:
-            model = train_clip(train_dataloader, model, 3, 1e-7, device, save_path=args.use_model)
+            model = train_clip(train_dataloader, model, 10, 1e-7, device, save_path=args.use_model)
 
             # Validate the model
             accuracy = validate_clip(val_dataloader, image_dataset_folder, model, device, args.k)

@@ -1,4 +1,4 @@
-import os, sys, exiftool, pickle, shutil
+import os, sys, pickle, shutil
 
 import geopy
 from PIL import Image
