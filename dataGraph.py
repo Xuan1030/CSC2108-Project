@@ -15,7 +15,7 @@ country_counts = {country: len(os.listdir(os.path.join(dataset_path, country)))
 sorted_countries = sorted(country_counts.items(), key=lambda x: x[1], reverse=True)
 
 # Group countries below a threshold into "Others"
-threshold = 2.0  # Percentage threshold
+threshold = 2.0 
 total_images = sum(count for _, count in sorted_countries)
 
 # Separate top countries and group others
@@ -41,8 +41,8 @@ wedges, texts, autotexts = plt.pie(
 
 # Update the percentage text appearance
 for autotext in autotexts:
-    autotext.set_color('black')  # Make the percentage text white
-    autotext.set_fontsize(16)     # Adjust font size for better fit
+    autotext.set_color('black') 
+    autotext.set_fontsize(16)    
 
 
 # Add a legend outside the chart
